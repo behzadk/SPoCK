@@ -10,7 +10,9 @@ import re
 import os
 import glob
 import csv
+from PyDSTool.Toolbox import phaseplane as pp
 
+import time
 
 def SPoCK_scipy_equations(y, t, D, mu_X, mu_Y, N_max,
                           gamma_A, gamma_B, k_A, f_max,
@@ -83,9 +85,18 @@ def SPoCK_scipy_model(parameter_csv_path, exp_num, t_max, step):
     final_X = sol[:, 0][step - 1]
     final_Y = sol[:, 1][step - 1]
 
+    plt.figure(1)
+    plt.plot(t, sol[:, 2], 'b', label='A')
+    plt.plot(t, sol[:, 3], 'g', label='B')
+    plt.title('SPoCK')
+    plt.xlabel('t')
+    plt.yscale('log')
+    plt.ylabel('Population')
+    plt.legend(loc=3)  # bottom left location
+    plt.show()
 
     """Criteria for saving parameter values and plot of populations"""
-    if final_X > 10**2 and final_Y > 10**2:
+    if final_X < 10**2 and final_Y > 10**2:
         csv_path = parameter_csv_path + "exp_" + exp_num + ".csv"
         csv_file = open(csv_path, 'wb')
         wrkbk = csv.DictWriter(csv_file, pardict.keys())
@@ -94,14 +105,15 @@ def SPoCK_scipy_model(parameter_csv_path, exp_num, t_max, step):
 
         with PdfPages(parameter_csv_path + "exp_" + exp_num + ".pdf") as pdf:
             plt.figure(1)
-            plt.plot(t, sol[:, 0], 'b', label='X')
-            plt.plot(t, sol[:, 1], 'g', label='Y')
+            plt.plot(t, sol[:, 2], 'b', label='A')
+            plt.plot(t, sol[:, 3], 'g', label='B')
             plt.title('SPoCK')
             plt.xlabel('t')
             plt.yscale('log')
             plt.ylabel('Population')
             plt.legend(loc=3)  # bottom left location
             pdf.savefig(plt.figure(1))
+
             plt.close()
 
 
@@ -125,18 +137,18 @@ def init_SPoCK():
     w = np.random.uniform(0, 1) / 10**np.random.randint(0, 3)
 
     pardict = {
-        'D': 0.3,                   #   Dilution rate
+        'D': 0.15,                   #   Dilution rate
         'mu_X': 0.4,                #   Engineered strain growth rate
         'mu_Y': 0.8,                #   Competitor growth rate
         'N_max': 10**9,             #   carrying capacity
         'gamma_A': 0.11,            #   Degradation rates of AHL
-        'gamma_B': gamma_B,         #   Degradation rate for bacteriocin
+        'gamma_B': 0,         #   Degradation rate for bacteriocin
         'k_A': 0.1,                 #   AHL production coefficient
         'f_min': 0,                 #   Minimal bacteriocin production level (PLtetO promoter leakiness)
         'f_max': 0.1,               #   Maximal bacteriocin production level
         'A_c': 10,                  #   AHL concentration at which bacteriocin production is at half-maximum
         'b': 2,                     #   Hil coefficient for bacteriocin production
-        'w': w                      #   Susceptibility of competitor to bacteriocin
+        'w': 1*10**-2                      #   Susceptibility of competitor to bacteriocin
     }
 
     """Functions"""
@@ -148,23 +160,70 @@ def init_SPoCK():
 
     """Differential Equations"""
     vardict = {
-        'X': 'k_u(X, Y) * mu_X * X - D * X',                          # Plasmid bearing strain population
-        'Y': 'k_u(X, Y) * mu_Y * Y - D * Y - omega(B) * Y',              # Competitor strain population
-        'A': 'k_A * X - gamma_A * A - D * A',                   # AHL quorum sensing molecule concentration
-        'B': 'fA(A) * X - gamma_B * B - D * B'                     # Bacteriocin concentration
+        'X': 'k_u(X, Y) * (mu_X * X) - (D * X)',                          # Plasmid bearing strain population
+        'Y': 'k_u(X, Y) * (mu_Y * Y) - (D * Y) - (omega(B) * Y)',              # Competitor strain population
+        'A': '(k_A * X) - (gamma_A * A) - (D * A)',                   # AHL quorum sensing molecule concentration
+        'B': '(fA(A) * X) - (gamma_B * B) - (D * B)'                     # Bacteriocin concentration
     }
 
-    X_init = np.random.randint(1, 4)
-    Y_init = np.random.randint(1, 4)
+    X_init = 3
+    Y_init = 2
 
     icsdict = {
-        'X': 10**X_init,
-        'Y': 10**Y_init,
+        'X': 0,
+        'Y': 0,
         'A': 0,
         'B': 0
     }
 
     return (pardict, fndict, vardict, icsdict)
+
+
+def SPoCK_find_fixedpoints():
+    pardict, fndict, vardict, icsdict = init_SPoCK()
+
+    DSargs = dst.args()
+    DSargs.pars = pardict
+    DSargs.varspecs = vardict
+    DSargs.fnspecs = fndict
+    DSargs.ics = icsdict
+
+    DSargs.name = 'SPoCK'
+    DSargs.tdata = [0, 100]
+    DSargs.xdomain = {'X': [0, 10 ** 9],
+                      'Y': [0, 10 ** 9],
+                      'A': [0, 10 ** 9],
+                      'B': [0, 10 ** 9],
+                      }
+
+    spock_ode = dst.Vode_ODEsystem(DSargs)
+
+    fp_coords = pp.find_fixedpoints(spock_ode, n=5, eps=1e-8)
+
+    plt.figure()
+    a_coord = 0
+    for coord in fp_coords:
+        print("X, Y: ", coord)
+        plt.plot(coord['X'], coord['Y'], 'bo')
+        a_coord += 1
+    plt.xlabel("X")
+    plt.ylabel("Y")
+    plt.title('Fixed points \n w = 1*10**-2, D = 0.2 ')
+
+    plt.figure()
+    a_coord = 0
+    for coord in fp_coords:
+        print("X, Y: ", coord)
+        plt.plot(coord['X'], coord['B'], 'bo')
+        a_coord += 1
+
+    plt.xlabel("X")
+    plt.ylabel("B")
+    plt.title('Fixed points \n w = 1*10**-2, D = 0.2 ')
+    plt.show()
+
+    print(a_coord)
+
 
 def SPoCK_pydstool_model():
     pardict, fndict, vardict, icsdict = init_SPoCK()
@@ -176,10 +235,16 @@ def SPoCK_pydstool_model():
     DSargs.ics = icsdict
 
     DSargs.name = 'SPoCK'
-    DSargs.tdata = [0, 5]
+    DSargs.tdata = [0, 100]
+    DSargs.xdomain = {'X': [0, 10**9],
+                      'Y': [0, 10**9],
+                      'A': [0, 10 ** 9],
+                      'B': [0, 10 ** 9],
+                      }
 
-    lv = dst.Vode_ODEsystem(DSargs)
-    traj = lv.compute('SPoCK')
+
+    spock_ode = dst.Vode_ODEsystem(DSargs)
+    traj = spock_ode.compute('SPoCK')
     pts = traj.sample()
 
     """Plot solution"""
@@ -192,36 +257,55 @@ def SPoCK_pydstool_model():
     plt.legend(loc=3)  # bottom left location
     plt.show()
 
-def get_initial_exp_number(parameter_csv_path):
-    """
-    description:
-        Returns the highest experiment number in the directory passed as argument,
-        so as not to overwrite existing files
 
-    arguments:
-        Path to parameter csv files
+    #setup continuation class
+    PC = dst.ContClass(spock_ode)
 
-    returns:
-        String of initial exp number
-    """
-    parameter_csv_path = parameter_csv_path + "*.csv"
-    all_files = max(glob.glob(parameter_csv_path))
-    file_name = os.path.basename(all_files)
-    file_name_noext = file_name.split('.')[0]
-    max_exp_num = int(file_name_noext.split('_')[1])
-    initial_exp_num = str(max_exp_num + 1)
+    PCargs = dst.args(name = 'EQ1', type='EP-C')
+    PCargs.freepars = ['D']
+    PCargs.StepSize = 0.0001
+    PCargs.MaxNumPoints = 100
+    PCargs.MaxStepSize = 1e-2
+    PCargs.LocBifPoints = 'LP'
+    PCargs.SaveEigen = True
+    PCargs.verbosity = 2
+    PC.newCurve(PCargs)
 
-    return(initial_exp_num)
+    start = time.clock()
+    PC['EQ1'].forward()
+
+
+
+    #PC.display(('D', 'X'), stability=True, figure=1)
+    #plt.xlim(-1, 5)
+    #PC.display(('D', 'Y'), stability=True, figure=2)
+    #plt.xlim(-1, 5)
+
+    #plt.show()
+
+
+
+    #nulls_X, nulls_Y = pp.find_nullclines(spock_ode, 'X', 'Y', n=3, eps=1e-8, max_step=0.1,fps=fp_coords)
+    #plt.plot(nulls_X[:,0], nulls_X[:,1], 'b')
+    #plt.plot(nulls_Y[:,0], nulls_Y[:,1], 'g')
+
+    ##plt.axis('tight')
+    #plt.axis([0,15,0,15])
+    #plt.title('Phase plane')
+    #plt.xlabel('X')
+    #plt.ylabel('Y')
+    #plt.show()
+    #print("fixed points: ", fp_coords)
+
 
 def main():
-    #SPoCK_pydstool_model()
-
+    SPoCK_find_fixedpoints()
+    exit()
     #Path to output directory
     parameter_csv_path = "/Users/behzakarkaria/Documents/UCL/Barnes Lab/PhD Project/research_code/SPoCK_model/parameter_csv/"
 
     t_max = 100
     step = 10000
-
 
     #Identify highest exp_num in directory, used for naming output
     try:
