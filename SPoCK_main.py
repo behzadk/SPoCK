@@ -449,10 +449,10 @@ def SPoCK_bifurcation(alt_ics_dict):
 
     PCargs = dst.args(name='EQ1', type='EP-C')
     PCargs.freepars = ['A_c']
-    PCargs.StepSize = 1
+    PCargs.StepSize = 10
     PCargs.MaxNumPoints = 10000
-    PCargs.MaxStepSize = 2
-    PCargs.MinStepSize = 0.5
+    PCargs.MaxStepSize = 20
+    PCargs.MinStepSize = 10
     PCargs.MaxTestIters = 10000
     PCargs.LocBifPoints = 'all'
     PCargs.SaveEigen = True
@@ -461,39 +461,57 @@ def SPoCK_bifurcation(alt_ics_dict):
 
     PC['EQ1'].backward()
 
+    print(PC['EQ1'].info())
+
+    PCargs = dst.args(name='EQ2', type='EP-C')
+    PCargs.initpoint = 'EQ1:H1'
+    PCargs.freepars = ['A_c']
+    PCargs.StopAtPoints = ['BP']
+    PCargs.MaxNumPoints = 10
+    PCargs.MaxStepSize = 20
+    PCargs.MinStepSize = 10
+    PCargs.StepSize = 10
+    PCargs.LocBifPoints = 'all'
+    PCargs.SaveEigen = True
+    PC.newCurve(PCargs)
+
+
+    PC['EQ2'].forward()
+
     plot_out_path = "/Users/behzakarkaria/Documents/UCL/Barnes Lab/PhD Project/research_code/SPoCK_model/parameter_csv/fixedpoint_plots/"
 
 
     with PdfPages(plot_out_path + "bifurcation_Ac_X" + ".pdf") as pdf:
-        plt.figure(1)
-        fig, ax = plt.subplots(figsize=(18,12.5))
-        ax.set_xlim(10**0, 10**9)
-        ax.set_ylim(10**0, 10**9)
-        ax.set_xscale('symlog', basex=10)
-        ax.set_yscale('symlog', basey=10)
-        PC.display(('A_c', 'X'), stability=True, figure=1)
-        pdf.savefig(ax.get_figure())
+        fig1 = plt.figure(1)
+        ax = fig1.add_subplot(figsize=(18,12.5))
+        #ax.set_xlim(10**0, 10**9)
+        #ax.set_ylim(10**0, 10**9)
+        #ax.set_xscale('symlog', basex=10)
+        #ax.set_yscale('symlog', basey=10)
+        PC.display(('A_c', 'X'), stability=True)
+        pdf.savefig(fig1)
 
     with PdfPages(plot_out_path + "bifurcation_Ac_Y" + ".pdf") as pdf:
-        plt.figure(2)
-        fig, ax2 = plt.subplots(figsize=(18,12.5))
-        ax2.set_xlim(0, 10**9)
-        ax2.set_ylim(0, 10**9)
-        ax2.set_xscale('symlog', basex=10)
-        ax2.set_yscale('symlog', basey=10)
-        PC.display(('A_c', 'Y'),  stability=True, figure=2)
+        fig2 = plt.figure(2)
+        fig2.add_subplot(figsize=(18,12.5))
+        ax2 = plt.gca()
+        #ax2.set_xlim(0, 10**9)
+        #ax2.set_ylim(0, 10**9)
+        #ax2.set_xscale('symlog', basex=10)
+        #ax2.set_yscale('symlog', basey=10)
+        PC.display(('A_c', 'X'),  stability=True, figure=fig2)
         pdf.savefig(ax2.get_figure())
 
 
-    with PdfPages(plot_out_path + "bifurcation_X_Y" + ".pdf") as pdf:
-        plt.figure(3)
-        fig, ax3 = plt.subplots(figsize=(18, 12.5))
-        ax3.set_xlim(0, 10**9)
-        ax3.set_ylim(0, 10**9)
-        ax3.set_xscale('symlog', basex=10)
-        ax3.set_yscale('symlog', basey=10)
-        PC.display(('X', 'Y'), stability=True, figure=3)
-        pdf.savefig(ax3.get_figure())
+        # with PdfPages(plot_out_path + "bifurcation_X_Y" + ".pdf") as pdf:
+        # plt.figure(3)
+        # ax3 = fig.add_subplot(figsize=(18, 12.5))
+        # #ax3.set_xlim(0, 10**9)
+        # #ax3.set_ylim(0, 10**9)
+        # ax3.set_xscale('symlog', basex=10)
+        # ax3.set_yscale('symlog', basey=10)
+        # PC.display(('X', 'Y'), stability=True)
+        # pdf.savefig(ax3.get_figure())
 
 def SPoCK_pydstool_model():
     pass
